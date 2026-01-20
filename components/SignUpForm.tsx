@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { User, Mail, Lock, Eye, EyeOff, UserPlus, Loader2, CheckCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SignUpFormData {
   fullName: string;
@@ -22,28 +23,48 @@ export default function SignUpForm({ toggleToLogin }: SignUpFormProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const { signUp } = useAuth();
   
   const {
     register,
     handleSubmit,
     watch,
     formState: { errors },
+    setError,
   } = useForm<SignUpFormData>();
 
   const password = watch("password");
 
   const onSubmit = async (data: SignUpFormData) => {
     setIsLoading(true);
-    // Simulate API call
-    console.log("Sign up data:", data);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    setIsSuccess(true);
     
-    // Show success message and redirect to login
-    setTimeout(() => {
-      toggleToLogin();
-    }, 2000);
+    const { error, data: signUpData } = await signUp(
+      data.email,
+      data.password,
+      data.fullName
+    );
+    
+    setIsLoading(false);
+    
+    if (error) {
+      setError("email", {
+        type: "manual",
+        message: error.message || "Failed to create account",
+      });
+    } else {
+      setIsSuccess(true);
+      
+      // Check if email confirmation is required
+      if (signUpData?.user && !signUpData.session) {
+        setVerificationSent(true);
+      }
+      
+      // Show success message and redirect to login
+      setTimeout(() => {
+        toggleToLogin();
+      }, 3000);
+    }
   };
 
   const containerVariants = {
@@ -92,7 +113,9 @@ export default function SignUpForm({ toggleToLogin }: SignUpFormProps) {
           transition={{ delay: 0.6 }}
           className="text-purple-200"
         >
-          Redirecting to login...
+          {verificationSent 
+            ? "Please check your email to verify your account before logging in."
+            : "Redirecting to login..."}
         </motion.p>
       </motion.div>
     );

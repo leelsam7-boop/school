@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { Mail, Lock, Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface LoginFormData {
   email: string;
@@ -14,19 +16,56 @@ interface LoginFormData {
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const router = useRouter();
+  const { signIn, resetPassword } = useAuth();
+  
   const {
     register,
     handleSubmit,
     formState: { errors },
+    setError,
   } = useForm<LoginFormData>();
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    // Simulate API call
-    console.log("Login data:", data);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsLoading(false);
-    alert("Login successful! (This is a demo)");
+    
+    const { error } = await signIn(data.email, data.password);
+    
+    if (error) {
+      setError("email", {
+        type: "manual",
+        message: error.message || "Invalid email or password",
+      });
+      setIsLoading(false);
+    } else {
+      // Redirect to dashboard
+      router.push("/dashboard");
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!resetEmail) {
+      return;
+    }
+    
+    setResetLoading(true);
+    const { error } = await resetPassword(resetEmail);
+    setResetLoading(false);
+    
+    if (error) {
+      alert(error.message);
+    } else {
+      setResetSuccess(true);
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setResetSuccess(false);
+        setResetEmail("");
+      }, 3000);
+    }
   };
 
   const containerVariants = {
@@ -47,6 +86,85 @@ export default function LoginForm() {
     visible: { opacity: 1, y: 0 },
   };
 
+  if (showForgotPassword) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="space-y-5"
+      >
+        <div className="text-center mb-6">
+          <h3 className="text-2xl font-bold text-white mb-2">Reset Password</h3>
+          <p className="text-purple-200 text-sm">
+            {resetSuccess 
+              ? "Check your email for reset instructions!" 
+              : "Enter your email to receive a password reset link"}
+          </p>
+        </div>
+
+        {!resetSuccess && (
+          <>
+            <div>
+              <label className="block text-white/90 mb-2 text-sm font-medium">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/50 transition-all duration-300 input-glow"
+                  placeholder="Enter your email"
+                />
+              </div>
+            </div>
+
+            <motion.button
+              type="button"
+              onClick={handlePasswordReset}
+              disabled={resetLoading || !resetEmail}
+              className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 text-white font-semibold rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {resetLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Sending...
+                </span>
+              ) : (
+                "Send Reset Link"
+              )}
+            </motion.button>
+          </>
+        )}
+
+        {resetSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-8"
+          >
+            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-8 h-8 text-green-400" />
+            </div>
+            <p className="text-white">Email sent successfully!</p>
+          </motion.div>
+        )}
+
+        <motion.button
+          type="button"
+          onClick={() => setShowForgotPassword(false)}
+          className="w-full text-purple-300 hover:text-purple-100 transition-colors text-sm"
+          whileHover={{ scale: 1.05 }}
+        >
+          Back to Login
+        </motion.button>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.form
       variants={containerVariants}
@@ -59,12 +177,12 @@ export default function LoginForm() {
       {/* Email field */}
       <motion.div variants={itemVariants}>
         <label className="block text-white/90 mb-2 text-sm font-medium">
-          Email or Username
+          Email Address
         </label>
         <div className="relative">
           <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-purple-300 w-5 h-5" />
           <input
-            type="text"
+            type="email"
             {...register("email", {
               required: "Email is required",
               pattern: {
@@ -141,14 +259,15 @@ export default function LoginForm() {
             Remember me
           </span>
         </label>
-        <motion.a
-          href="#"
+        <motion.button
+          type="button"
+          onClick={() => setShowForgotPassword(true)}
           className="text-sm text-purple-300 hover:text-purple-100 transition-colors"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           Forgot password?
-        </motion.a>
+        </motion.button>
       </motion.div>
 
       {/* Submit button */}
